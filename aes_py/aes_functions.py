@@ -12,31 +12,27 @@ logger = logging.getLogger(__name__)
 def xor(s1, s2):
     return tuple(a ^ b for a, b in zip(s1, s2))
 
-'''
-xtime multiplies bitwisely by two in the Gallois field GF(2^8)
-'''
 def xtime(a):
+    '''xtime multiplies bitwisely by two in the Gallois field GF(2^8)'''
     return ((a << 1) % 256) ^ (((a >> 7) & 1) * 0x1B)
 
-'''
-gfmul, for Gallois field multiplication.
-The biggest factor y that can be is 14 = 0x0E = (1110). (y>>4) is the
-maximum right shift we need for AesDog.
-'''
 def gf_mul(x, y):
+    '''
+    gfmul, for Gallois field multiplication.
+    The biggest factor y that can be is 14 = 0x0E = (1110). (y>>4) is the
+    maximum right shift we need for AesDog.
+    '''
     return (
-            ((y & 1) * x) ^
-            ((y >> 1 & 1) * xtime(x)) ^
-            ((y >> 2 & 1) * xtime(xtime(x))) ^
-            ((y >> 3 & 1) * xtime(xtime(xtime(x)))) ^
-            ((y >> 4 & 1) * xtime(xtime(xtime(xtime(x)))))
+        ((y & 1) * x) ^
+        ((y >> 1 & 1) * xtime(x)) ^
+        ((y >> 2 & 1) * xtime(xtime(x))) ^
+        ((y >> 3 & 1) * xtime(xtime(xtime(x)))) ^
+        ((y >> 4 & 1) * xtime(xtime(xtime(xtime(x)))))
         )
 
 
 class AesDog(object):
-    '''
-    AesDog class
-    '''
+    '''AesDog class for AES encrypting/decrypting.'''
     # Rcon matrix. aes128 only uses up to rcon[10] for there are 11 round key
     # steps. In other variants with bigger blocks, aes uses up to rcon[29]
     # cells.
@@ -121,18 +117,20 @@ class AesDog(object):
             logger.error('Bad key length.')
             exit(1)
         if not len(encrypted) % (self.nb * 4) == 0:
-            logger.error('Encrypted text has a wrong length (not of the block size nb*4).')
+            logger.error('Encrypted text has a wrong length (not of the block \
+                        size nb*4).')
             exit(1)
         else:
             self.encrypted = encrypted
         self.clear = clear
 
-    '''
-    Padding is used to have every block (namely, the last one) of the same
-    proper block length.  We use PKCS#7: the size of the padding (bytes) is
-    used for padding. e.g.: 04 04 04 04 for four padding bytes.
-    ''' 
+
     def padding(self, s):
+        '''
+       	Padding is used to have every block (namely, the last one) of the same
+       	proper block length.  We use PKCS#7: the size of the padding (bytes) is
+       	used for padding. e.g.: 04 04 04 04 for four padding bytes.
+       	'''
         n = len(s) % (self.nb*4)
         if n == 0:
             return s
@@ -147,10 +145,8 @@ class AesDog(object):
         else:
             return s
 
-    '''
-    Encrypt the data using block cipher mode 'mode'.
-    '''
     def encrypt(self, mode, **kwparams):
+        '''Encrypt the data using block cipher mode'''
         if 'iv' in kwparams:
             self.iv = kwparams['iv']
         self.clear = self.padding(self.clear)
@@ -172,31 +168,31 @@ class AesDog(object):
             logger.error('IV missing or bad length, abort.')
             exit(1)
 
-    '''
-    Basic mode for encrypting: each block is encrypted in the same way.
-    Comparing the result with an image, the resulting 'encrypted' image would 
-    still be recognizable for each block would correspond to the original clear
-    text.
-    '''
+
     def bmode_ecb_enc(self):
+        '''
+       	Basic mode for encrypting: each block is encrypted in the same way.
+       	Comparing the result with an image, the resulting 'encrypted' image
+       	would still be recognizable for each block would correspond to the
+       	original clear text.
+       	'''
         for i in range(len(self.clear) / (4*self.nb)):
-            self.encrypted += self.cipher(self.clear[4*self.nb*i:4*self.nb*(i+1)])
+            self.encrypted += self.cipher(self.clear[4*self.nb*i:4*self.nb*
+                                                     (i+1)])
 
     def bmode_ecb_dec(self):
         for i in range(len(self.encrypted) / (4*self.nb)):
-            self.decrypted += self.decipher(self.encrypted[4 * self.nb * i:4 * 
-                                            self.nb * (i+1)])
+            self.decrypted += self.decipher(self.encrypted[4 * self.nb * i:4 *
+                                                           self.nb * (i+1)])
 
-    '''
-    Mode CBC, safer than weak ECB (yet not always safe).
-    '''
     def bmode_cbc_enc(self):
+        '''Mode CBC, safer than weak ECB (yet not always safe)'''
         self.check_iv()
         n = self.nb*4
         vector = self.iv
         for i in range(len(self.clear) / n):
             vector = cipher = self.cipher([chr(ord(a) ^ ord(b)) for a, b in
-                                           zip(self.clear[n*i:n*(i+1)], 
+                                           zip(self.clear[n*i:n*(i+1)],
                                                vector)])
             self.encrypted += cipher
 
@@ -205,18 +201,15 @@ class AesDog(object):
         n = 4*self.nb
         vector = self.iv
         for i in range(len(self.encrypted) / n):
-            self.decrypted += ''.join([chr(ord(a) ^ ord(b)) for a, b in zip(
-                                self.decipher(self.encrypted[n*i:n*(i+1)]), 
-                                vector
-                             )])
+            self.decrypted += ''.join([chr(ord(a) ^ ord(b)) for a, b in
+                                       zip(self.decipher(self.encrypted[n*i:n*(i+1)]),
+                                           vector)])
             vector = self.encrypted[n*i:n*(i+1)]
 
-    '''
-    Following key size, encrypt in 128, 192 or 256 bits.
-    '''
     def cipher(self, block):
+        '''Following key size, encrypt in 128, 192 or 256 bits'''
         self.state = map(ord, block)
-        self.add_round_key(self.round_key[0:self.nb*4]) 
+        self.add_round_key(self.round_key[0:self.nb*4])
         for r in range(1, self.nr):
             self.sub_byte()
             self.shift_rows()
@@ -224,12 +217,14 @@ class AesDog(object):
             self.add_round_key(self.round_key[self.nb*4*r:self.nb*4*(r+1)])
         self.sub_byte()
         self.shift_rows()
-        self.add_round_key(self.round_key[self.nb*4*self.nr:self.nb*4*(self.nr+1)])
+        self.add_round_key(self.round_key[self.nb*4*self.nr:self.nb*4*
+                                          (self.nr+1)])
         return ''.join(map(chr, self.state))
 
     def decipher(self, block):
         self.state = map(ord, block)
-        self.add_round_key(self.round_key[self.nb*4*self.nr:self.nb*4*(self.nr+1)]) 
+        self.add_round_key(self.round_key[self.nb*4*self.nr:self.nb*4*
+                                          (self.nr+1)])
         for r in range(self.nr-1, 0, -1):
             self.rev_shift_rows()
             self.rev_sub_byte()
@@ -240,10 +235,8 @@ class AesDog(object):
         self.add_round_key(self.round_key[0:self.nb*4])
         return ''.join(map(chr, self.state))
 
-    '''
-    add_round_key performs a xor between the current round_key and the state.
-    ''' 
     def add_round_key(self, round_key):
+        '''add_round_key performs a xor on the current round_key and the state'''
         for i, b in enumerate(round_key):
             self.state[i] ^= b
 
@@ -255,52 +248,52 @@ class AesDog(object):
         for i, b in enumerate(self.state):
             self.state[i] = AesDog.sbox_rev[b]
 
-    '''
-    The rows of the state are cyclically shifted over different offsets. Row 0
-    is not shifted, Row 1,2,3 are shifted according the block length nb.
-    ''' 
     def shift_rows(self):
+        '''
+       	The rows of the state are cyclically shifted over different offsets.
+       	Row 0 is not shifted, Row 1,2,3 are shifted according the block length
+       	nb.
+       	'''
         rows = []
         rows.append(self.state[0::4])
-        rows.append(self.state[1::4]) 
+        rows.append(self.state[1::4])
         rows[1] = rows[1][1:] + rows[1][:1]
         for r in range(2, 4):
-            rows.append(self.state[r::4]) 
+            rows.append(self.state[r::4])
             if self.nb == 4 or self.nb == 6:
                 rows[r] = rows[r][r:] + rows[r][:r]
             elif self.nb == 8:
-                rows[r] = rows[r][r+1:] + rows[r][:r+1] 
+                rows[r] = rows[r][r+1:] + rows[r][:r+1]
         self.state = [r[c] for c in range(self.nb) for r in rows]
 
-    '''
-    The reverse version of shift_rows, we rotate in the other way.
-    '''
     def rev_shift_rows(self):
+        '''The reverse version of shift_rows, we rotate in the other way'''
         rows = []
         rows.append(self.state[0::4])
-        rows.append(self.state[1::4]) 
+        rows.append(self.state[1::4])
         rows[1] = rows[1][self.nb-1:] + rows[1][:self.nb-1]
         for r in range(2, 4):
             rows.append(self.state[r::4])
             if self.nb == 4 or self.nb == 6:
-                rows[r] = rows[r][self.nb-r:] + rows[r][:self.nb-r] 
+                rows[r] = rows[r][self.nb-r:] + rows[r][:self.nb-r]
             elif self.nb == 8:
-                rows[r] = rows[r][self.nb-r-1:] + rows[r][:self.nb-r-1] 
+                rows[r] = rows[r][self.nb-r-1:] + rows[r][:self.nb-r-1]
         self.state = [r[c] for c in range(self.nb) for r in rows]
 
-    '''
-    For each column (nb columns), we diffuse the cipher by the following operation:
-        b0 = 2a0 ^ 3a1 ^ a2 ^ a3
-        b1 = a0 ^ 2a1 ^ 3a2 ^ a3
-        b2 = a0 ^ a1 ^ 2a2 ^ 3a3
-        b3 = 3a0 ^ a1 ^ a2 ^ 2a3
-    Returns a modified value of the state.
-    '''
     def mix_columns(self):
+        '''
+       	For each column (nb columns), we diffuse the cipher by the following
+       	operation:
+       	    b0 = 2a0 ^ 3a1 ^ a2 ^ a3
+       	    b1 = a0 ^ 2a1 ^ 3a2 ^ a3
+       	    b2 = a0 ^ a1 ^ 2a2 ^ 3a3
+       	    b3 = 3a0 ^ a1 ^ a2 ^ 2a3
+       	Returns a modified value of the state.
+       	'''
         temp = []
         for i in range(self.nb):
             c = self.state[i*4:(i+1)*4]
-            temp.extend((        
+            temp.extend((
                 gf_mul(c[0], 0x02) ^ gf_mul(c[1], 0x03) ^ c[2] ^ c[3],
                 c[0] ^ gf_mul(c[1], 0x02) ^ gf_mul(c[2], 0x03) ^ c[3],
                 c[0] ^ c[1] ^ gf_mul(c[2], 0x02) ^ gf_mul(c[3], 0x03),
@@ -312,7 +305,7 @@ class AesDog(object):
         temp = []
         for i in range(self.nb):
             c = self.state[i*4:(i+1)*4]
-            temp.extend((        
+            temp.extend((
                 gf_mul(c[0], 0x0e) ^ gf_mul(c[1], 0x0b) ^ gf_mul(c[2], 0x0d) ^ gf_mul(c[3], 0x09),
                 gf_mul(c[0], 0x09) ^ gf_mul(c[1], 0x0e) ^ gf_mul(c[2], 0x0b) ^ gf_mul(c[3], 0x0d),
                 gf_mul(c[0], 0x0d) ^ gf_mul(c[1], 0x09) ^ gf_mul(c[2], 0x0e) ^ gf_mul(c[3], 0x0b),
@@ -320,12 +313,12 @@ class AesDog(object):
             ))
         self.state = temp
 
-    '''
-    The following functions are used to generate the expended key,
-    composed of the key and its derivatives, the round keys.
-    '''
     def key_expansion(self):
-        words = [] 
+        '''
+    	The following functions are used to generate the expended key,
+    	composed of the key and its derivatives, the round keys.
+        '''
+        words = []
         # The first round key (word) is the key itsefl
         words.extend(map(ord, self.key))
         logger.debug('Enterring key_expansion process, key used: %s', self.key)
@@ -335,30 +328,30 @@ class AesDog(object):
             # For words of position multiple of nk, we use rotword and then
             # subword functions on the preceding word
             if i % self.nk == 0:
-                temp = xor(self.sub_word(self.rot_word(temp)), (self.rcon[i / self.nk], 0, 0, 0))
+                temp = xor(self.sub_word(self.rot_word(temp)),
+                           (self.rcon[i / self.nk], 0, 0, 0))
             elif self.nk > 6 and i % self.nk == 4:
                 temp = self.sub_word(temp)
 
-            words.extend(xor(words[(i - self.nk) * 4: (i - self.nk + 1) * 4], temp))
+            words.extend(xor(words[(i - self.nk) * 4: (i - self.nk + 1) * 4],
+                             temp))
         self.round_key = words
 
-    '''
-    rot_word performs a circular left shift on an input word and returns the
-    modified word: [b0, b1, b2, b3] => [b1, b2, b3, b0]
-    '''
     @staticmethod
     def rot_word(word):
+        '''
+       	rot_word performs a circular left shift on an input word and returns the
+       	modified word: [b0, b1, b2, b3] => [b1, b2, b3, b0]
+       	'''
         if not len(word) == 4:
-            logger.error('word for rot_byte function of length different than 4.')
+            logger.error('word for rot_byte function of length other than 4.')
             exit(1)
         return word[1:] + word[:1]
 
-    '''
-    sub_word substitues the values of the input by values in the SBox.
-    '''
-    @staticmethod 
+    @staticmethod
     def sub_word(word):
+        '''sub_word substitues the values of the input by values in the SBox'''
         if not len(word) == 4:
-            logger.error('word for syb_byte function of length different than 4.')
+            logger.error('word for syb_byte function of length other than 4.')
             exit(1)
         return (AesDog.sbox[b] for b in word)

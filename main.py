@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import aes_py.aes_functions 
-import logging
 
 # key is decoded directly as hex for convenience as we use hex values in our sbox and else 
 clear_txt = 'clear.txt2'
