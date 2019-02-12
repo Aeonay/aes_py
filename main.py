@@ -2,6 +2,7 @@
 
 import aes_py.aes_functions 
 
+# TODO: move to a test file, add entry to Makefile
 # key is decoded directly as hex for convenience as we use hex values in our sbox and else 
 clear_txt = 'clear.txt2'
 key = '1234567812345678'

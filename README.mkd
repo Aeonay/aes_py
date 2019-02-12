@@ -1,3 +1,5 @@
 # AES class in python 2.7
 
-
+## TODO
+- app should take inputs instead of using a pre-determined set of keys
+- current `main.py` should be moved to a test file
