@@ -26,7 +26,7 @@ aes_ops.encrypt('cbc', iv=iv3) # With mode CBC, use a proper IV
 
 # print result
 print "Clear text: {0}".format(aes_ops.clear)
-print "Encrypted text: {0}".format(aes_ops.encrypted)
+#print "Encrypted text: {0}".format(aes_ops.encrypted)
 print "(base64): {0}".format(aes_ops.encrypted.encode('base64'))
 aes_ops.decrypt('cbc', iv=iv3)
 print "Entligen... : {0}".format(aes_ops.decrypted)
